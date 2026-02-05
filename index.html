@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Jira Due Tickets</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { background: #f4f4f4; }
+    .overdue { color: red; }
+    .soon { color: orange; }
+  </style>
+</head>
+<body>
+
+<h2>Jira Tickets – Due Soon</h2>
+
+<label>
+  Assignee:
+  <select id="assigneeFilter">
+    <option>All</option>
+  </select>
+</label>
+
+<button onclick="loadTickets()">Refresh</button>
+
+<br><br>
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Summary</th>
+      <th>Assignee</th>
+      <th>Due Date</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody id="tickets"></tbody>
+</table>
+
+<script>
+async function loadTickets() {
+  const assignee = document.getElementById("assigneeFilter").value;
+  const res = await fetch(`/api/tickets?assignee=${assignee}`);
+  const data = await res.json();
+
+  const tbody = document.getElementById("tickets");
+  tbody.innerHTML = "";
+
+  const assignees = new Set(["All"]);
+
+  data.forEach(ticket => {
+    assignees.add(ticket.assignee);
+
+    const tr = document.createElement("tr");
+
+    const dueClass = ticket.duedate && new Date(ticket.duedate) < new Date()
+      ? "overdue"
+      : "soon";
+
+    tr.innerHTML = `
+      <td><a href="${ticket.url}" target="_blank">${ticket.key}</a></td>
+      <td>${ticket.summary}</td>
+      <td>${ticket.assignee}</td>
+      <td class="${dueClass}">${ticket.duedate || "-"}</td>
+      <td>${ticket.status}</td>
+    `;
+
+    tbody.appendChild(tr);
+  });
+
+  const select = document.getElementById("assigneeFilter");
+  select.innerHTML = "";
+  assignees.forEach(a => {
+    const opt = document.createElement("option");
+    opt.textContent = a;
+    select.appendChild(opt);
+  });
+}
+
+loadTickets();
+</script>
+
+</body>
+</html>
