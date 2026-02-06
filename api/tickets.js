@@ -1,6 +1,12 @@
 const axios = require("axios");
-require("dotenv").config();
 
+// On Vercel, process.env variables are automatically available
+// No need to require('dotenv') in production
+if (process.env.NODE_ENV !== "production") {
+  require("dotenv").config(); // Only load .env locally
+}
+
+// Read Jira credentials from environment variables
 const baseUrl = process.env.JIRA_BASE_URL.replace(/\/$/, "");
 const email = process.env.JIRA_EMAIL;
 const apiToken = process.env.JIRA_API_TOKEN;
@@ -43,15 +49,16 @@ module.exports = async (req, res) => {
       headers: { "Accept": "application/json" }
     });
 
+    // Collect all assignees
     const assigneesSet = new Set();
     response.data.issues.forEach(issue => {
       if (issue.fields.assignee?.displayName) {
         assigneesSet.add(issue.fields.assignee.displayName);
       }
     });
-
     const assignees = Array.from(assigneesSet);
 
+    // Map issues to simplified objects
     const issues = response.data.issues.map(issue => ({
       key: issue.key,
       summary: issue.fields.summary,
