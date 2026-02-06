@@ -1,86 +1,261 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Jira Due Tickets</title>
+  <title>MCM Jira Tracker</title>
   <style>
-    body { font-family: Arial; padding: 20px; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ddd; padding: 8px; }
-    th { background: #f4f4f4; }
-    .overdue { color: red; }
-    .soon { color: orange; }
+    body {
+      margin: 0;
+      padding: 30px;
+      font-family: "Inter", "Segoe UI", sans-serif;
+      background: #f5f6f8;
+      color: #333;
+    }
+    .container {
+      max-width: 1100px;
+      margin: auto;
+    }
+    h1 {
+      text-align: center;
+      font-size: 30px;
+      margin-bottom: 4px;
+    }
+    p.subtitle {
+      text-align: center;
+      color: #444;
+      font-size: 16px;
+      margin-top: 0;
+      margin-bottom: 20px;
+    }
+
+    /* Summary bar */
+    .summary-bar {
+      display: flex;
+      justify-content: space-around;
+      background: #fff;
+      padding: 12px 0;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    }
+    .summary-box {
+      text-align: center;
+      font-size: 16px;
+      font-weight: 600;
+      color: #222;
+    }
+    .summary-box span { font-size: 20px; display: block; margin-top: 6px; }
+
+    .filters {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    select {
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      background: #fff;
+      font-size: 14px;
+    }
+
+    /* Section headers */
+    .section-header {
+      font-size: 18px;
+      color: #555;
+      margin-top: 30px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 6px;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 18px;
+    }
+    .ticket-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      transition: transform 0.15s ease;
+    }
+    .ticket-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.08);
+    }
+    .ticket-header {
+      font-weight: 600;
+      font-size: 16px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .ticket-header a {
+      color: #1a73e8;
+      text-decoration: none;
+      font-size: 16px;
+    }
+    .ticket-badge {
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: #ddd;
+      color: #333;
+      font-weight: 600;
+    }
+    .ticket-body { font-size: 14px; }
+    .field { margin: 6px 0; }
+    .label { font-weight: 600; color: #555; }
+
+    .no-tickets {
+      text-align: center;
+      width: 100%;
+      color: #666;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
 
-<h2>Jira Tickets – Due Soon</h2>
+  <div class="container">
+    <h1>MCM Jira Tracker</h1>
+    <p class="subtitle">Tickets Overview</p>
 
-<label>
-  Assignee:
-  <select id="assigneeFilter">
-    <option>All</option>
-  </select>
-</label>
+    <!-- Summary Bar -->
+    <div class="summary-bar">
+      <div class="summary-box">
+        Overdue<br><span id="count-overdue">0</span>
+      </div>
+      <div class="summary-box">
+        Due Soon<br><span id="count-soon">0</span>
+      </div>
+      <div class="summary-box">
+        Future<br><span id="count-future">0</span>
+      </div>
+      <div class="summary-box">
+        Total<br><span id="count-total">0</span>
+      </div>
+    </div>
 
-<button onclick="loadTickets()">Refresh</button>
+    <div class="filters">
+      <select id="assigneeFilter">
+        <option value="All">All Assignees</option>
+      </select>
 
-<br><br>
+      <select id="timeFilter">
+        <option value="all">All</option>
+        <option value="past">Past Due</option>
+        <option value="upcoming">Upcoming</option>
+      </select>
+    </div>
 
-<table>
-  <thead>
-    <tr>
-      <th>Key</th>
-      <th>Summary</th>
-      <th>Assignee</th>
-      <th>Due Date</th>
-      <th>Status</th>
-    </tr>
-  </thead>
-  <tbody id="tickets"></tbody>
-</table>
+    <!-- Sections -->
+    <div id="overdue-section"></div>
+    <div id="soon-section"></div>
+    <div id="future-section"></div>
 
-<script>
-async function loadTickets() {
-  const assignee = document.getElementById("assigneeFilter").value;
-  const res = await fetch(`/api/tickets?assignee=${assignee}`);
-  const data = await res.json();
+  </div>
 
-  const tbody = document.getElementById("tickets");
-  tbody.innerHTML = "";
+  <script>
+    let allAssignees = [];
 
-  const assignees = new Set(["All"]);
+    async function loadTickets(assignee = "All", timeFilter = "all") {
+      const res = await fetch(`/api/tickets?assignee=${assignee}&timeFilter=${timeFilter}`);
+      const data = await res.json();
 
-  data.forEach(ticket => {
-    assignees.add(ticket.assignee);
+      // Populate assignee picklist once
+      if (allAssignees.length === 0) {
+        allAssignees = data.assignees.sort();
+        const aSelect = document.getElementById("assigneeFilter");
+        aSelect.innerHTML = '<option value="All">All Assignees</option>';
+        allAssignees.forEach(name => {
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.textContent = name;
+          aSelect.appendChild(opt);
+        });
+      }
 
-    const tr = document.createElement("tr");
+      // Counters
+      let overdueCount = 0, soonCount = 0, futureCount = 0, totalCount = data.issues.length;
 
-    const dueClass = ticket.duedate && new Date(ticket.duedate) < new Date()
-      ? "overdue"
-      : "soon";
+      document.getElementById("count-overdue").textContent = totalCount;
+      document.getElementById("count-soon").textContent = soonCount;
+      document.getElementById("count-future").textContent = futureCount;
+      document.getElementById("count-total").textContent = totalCount;
 
-    tr.innerHTML = `
-      <td><a href="${ticket.url}" target="_blank">${ticket.key}</a></td>
-      <td>${ticket.summary}</td>
-      <td>${ticket.assignee}</td>
-      <td class="${dueClass}">${ticket.duedate || "-"}</td>
-      <td>${ticket.status}</td>
-    `;
+      const today = new Date();
 
-    tbody.appendChild(tr);
-  });
+      // Clear sections
+      const overdueSec = document.getElementById("overdue-section");
+      const soonSec = document.getElementById("soon-section");
+      const futureSec = document.getElementById("future-section");
+      overdueSec.innerHTML = "";
+      soonSec.innerHTML = "";
+      futureSec.innerHTML = "";
 
-  const select = document.getElementById("assigneeFilter");
-  select.innerHTML = "";
-  assignees.forEach(a => {
-    const opt = document.createElement("option");
-    opt.textContent = a;
-    select.appendChild(opt);
-  });
-}
+      data.issues.forEach(issue => {
+        let diffDays = 999;
+        if (issue.duedate !== "No due date") {
+          diffDays = Math.ceil((new Date(issue.duedate) - today) / (1000*60*60*24));
+        }
 
-loadTickets();
-</script>
+        let section, badgeText, badgeStyle;
+        if (diffDays <= 0) {
+          section = overdueSec; badgeText = "🔥 Overdue"; overdueCount++;
+        } else if (diffDays <= 3) {
+          section = soonSec; badgeText = "⏰ Due Soon"; soonCount++;
+        } else {
+          section = futureSec; badgeText = "📅 Future"; futureCount++;
+        }
+
+        const card = document.createElement("div");
+        card.className = "ticket-card";
+        card.innerHTML = `
+          <div class="ticket-header">
+            <a href="${issue.url}" target="_blank">${issue.key}</a>
+            <span class="ticket-badge">${badgeText}</span>
+          </div>
+          <div class="ticket-body">
+            <div class="field"><span class="label">Summary:</span> ${issue.summary}</div>
+            <div class="field"><span class="label">Assignee:</span> ${issue.assignee}</div>
+            <div class="field"><span class="label">Due:</span> ${issue.duedate}</div>
+            <div class="field"><span class="label">Status:</span> ${issue.status}</div>
+          </div>
+        `;
+        section.appendChild(card);
+      });
+
+      // Update counts
+      document.getElementById("count-overdue").textContent = overdueCount;
+      document.getElementById("count-soon").textContent = soonCount;
+      document.getElementById("count-future").textContent = futureCount;
+      document.getElementById("count-total").textContent = totalCount;
+
+      // Section Headers
+      overdueSec.insertAdjacentHTML("afterbegin", `<div class="section-header">Overdue (${overdueCount})</div>`);
+      soonSec.insertAdjacentHTML("afterbegin", `<div class="section-header">Due Soon (${soonCount})</div>`);
+      futureSec.insertAdjacentHTML("afterbegin", `<div class="section-header">Future (${futureCount})</div>`);
+
+      if (totalCount === 0) {
+        overdueSec.innerHTML = "<div class='no-tickets'>No tickets found</div>";
+      }
+    }
+
+    document.getElementById("assigneeFilter").addEventListener("change", e => {
+      const tf = document.getElementById("timeFilter").value;
+      loadTickets(e.target.value, tf);
+    });
+    document.getElementById("timeFilter").addEventListener("change", e => {
+      const af = document.getElementById("assigneeFilter").value;
+      loadTickets(af, e.target.value);
+    });
+
+    loadTickets();
+  </script>
 
 </body>
 </html>
