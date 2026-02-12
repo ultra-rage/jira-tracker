@@ -1,13 +1,12 @@
 const axios = require("axios");
 
-// On Vercel, process.env variables are automatically available
-// No need to require('dotenv') in production
+// Only load dotenv locally
 if (process.env.NODE_ENV !== "production") {
-  require("dotenv").config(); // Only load .env locally
+  require("dotenv").config();
 }
 
-// Read Jira credentials from environment variables
-const baseUrl = process.env.JIRA_BASE_URL.replace(/\/$/, "");
+// Jira credentials from environment variables
+const baseUrl = process.env.JIRA_BASE_URL?.replace(/\/$/, "");
 const email = process.env.JIRA_EMAIL;
 const apiToken = process.env.JIRA_API_TOKEN;
 const projectKey = process.env.JIRA_PROJECT_KEY || "MCM";
@@ -24,7 +23,7 @@ module.exports = async (req, res) => {
     } else if (timeFilter === "upcoming") {
       dateClause = "AND duedate >= startOfDay()";
     } else {
-      dateClause = "AND duedate >= \"-90d\""; // last 90 days + future
+      dateClause = 'AND duedate >= "-90d"'; // last 90 days + future
     }
 
     let jql = `
@@ -37,7 +36,7 @@ module.exports = async (req, res) => {
     }
     jql += " ORDER BY duedate ASC";
 
-    const url = `${baseUrl}/rest/api/3/search/jql`;
+    const url = `${baseUrl}/rest/api/3/search`;
     const body = {
       jql,
       fields: ["summary", "assignee", "duedate", "status"],
@@ -68,7 +67,7 @@ module.exports = async (req, res) => {
       url: `${baseUrl}/browse/${issue.key}`
     }));
 
-    res.json({ issues, assignees });
+    res.status(200).json({ issues, assignees });
   } catch (error) {
     console.error("Jira fetch error:", error.response?.data || error.message);
     res.status(500).json({ error: "Failed to fetch Jira tickets" });
