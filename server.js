@@ -3,9 +3,12 @@ const tickets = require("./api/tickets.js");
 require("dotenv").config();
 
 const app = express();
-const port = 3000;
 
-app.get("/api/tickets", tickets);
+// Serve static files (index.html, etc.)
 app.use(express.static(__dirname));
 
-app.listen(port, () => console.log(`MCM Board running at http://localhost:${port}`));
+// API route
+app.get("/api/tickets", tickets);
+
+// Export the app for Vercel
+module.exports = app;
